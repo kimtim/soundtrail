@@ -15,9 +15,17 @@ class UploadRequest(BaseModel):
     title: str
     audio_url: str
 
-@app.get("/hello")
-def hello():
-    return {"message": "FastAPI is running!"}
+@app.get("/db-test")
+async def db_test():
+    import os
+    from asyncpg import connect
+    try:
+        conn = await connect(os.getenv("DATABASE_URL"))
+        await conn.close()
+        return {"db": "connected"}
+    except Exception as e:
+        return {"error": str(e)}
+
 
 
 @app.get("/api/v1/health")
