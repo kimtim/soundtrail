@@ -15,6 +15,11 @@ class UploadRequest(BaseModel):
     title: str
     audio_url: str
 
+@app.get("/hello")
+def hello():
+    return {"message": "FastAPI is running!"}
+
+
 @app.get("/api/v1/health")
 async def health():
     return {
