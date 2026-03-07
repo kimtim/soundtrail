@@ -1,14 +1,7 @@
 {
-  "builds": [
-    {
-      "src": "main.py",
-      "use": "@vercel/python"
-    }
-  ],
+  "builds": [{ "src": "main.py", "use": "@vercel/python" }],
   "routes": [
-    {
-      "src": "/(.*)",
-      "dest": "main.py"
-    }
+    { "src": "/api/(.*)", "dest": "main.py" },   // API 走后端
+    { "src": "/(.*)", "dest": "/index.html" }    // 其他走前端
   ]
 }
