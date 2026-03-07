@@ -1,7 +1,7 @@
 {
   "builds": [{ "src": "main.py", "use": "@vercel/python" }],
   "routes": [
-    { "src": "/api/(.*)", "dest": "main.py" },   // API 走后端
-    { "src": "/(.*)", "dest": "/index.html" }    // 其他走前端
+    { "src": "/api/(.*)", "dest": "main.py" },   
+    { "src": "/(.*)", "dest": "/index.html" }    
   ]
 }
