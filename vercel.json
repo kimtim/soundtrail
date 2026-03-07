@@ -1,7 +1,21 @@
 {
-  "builds": [{ "src": "main.py", "use": "@vercel/python" }],
+  "builds": [
+    {
+      "src": "main.py",
+      "use": "@vercel/python",
+      "config": {
+        "includeFiles": ["index.html"]
+      }
+    }
+  ],
   "routes": [
-    { "src": "/api/(.*)", "dest": "main.py" },   
-    { "src": "/(.*)", "dest": "/index.html" }    
+    {
+      "src": "/api/(.*)",
+      "dest": "main.py"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "/index.html"
+    }
   ]
 }
