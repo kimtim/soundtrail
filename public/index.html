@@ -105,8 +105,7 @@
       document.getElementById('app').innerHTML = '<p class="error">音频处理库加载失败，请刷新页面或检查网络</p>';
       throw new Error('FFmpeg not loaded');
     }
-    const { createFFmpeg, fetchFile } = FFmpeg;
-    const ff = createFFmpeg({ log: false });
+    const ff = FFmpeg.createFFmpeg({ log: false });
 
     // ========================
     // 全局状态
