@@ -4,22 +4,80 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
   <title>SoundTrail - 音乐分发平台</title>
-  <link rel="stylesheet" href="style.css" />
-  <!-- Supabase SDK -->
-  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
-  <!-- ffmpeg.wasm -->
-  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.7/dist/ffmpeg.min.js"></script>
-  <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/ffmpeg-util.min.js"></script>
   <style>
-    .loading { text-align: center; padding: 2rem; color: #6b7280; }
-    .hidden { display: none !important; }
-    .empty, .error {
+    /* 内联关键样式，避免 FOUC */
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      margin: 0;
+      padding: 0;
+      background: #f9fafb;
+    }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 1rem 2rem;
+      background: white;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+    h1 { margin: 0; color: #1f2937; }
+    main { padding: 2rem; }
+    .loading, .empty, .error {
       text-align: center;
       padding: 2rem;
       color: #6b7280;
     }
     .error { color: #ef4444; }
+    .hidden { display: none !important; }
+    .card {
+      background: white;
+      border-radius: 12px;
+      padding: 1.5rem;
+      margin-bottom: 1.5rem;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    button {
+      padding: 0.5rem 1rem;
+      margin: 0.25rem;
+      border: none;
+      border-radius: 6px;
+      background: #3b82f6;
+      color: white;
+      cursor: pointer;
+    }
+    button:hover { opacity: 0.9; }
+    .btn-primary { background: #1d4ed8; }
+    .btn-link {
+      display: inline-block;
+      text-decoration: none;
+      color: #3b82f6;
+      margin-top: 0.5rem;
+    }
+    .masonry-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+      gap: 1.5rem;
+    }
+    audio { width: 100%; margin: 1rem 0; }
+    #upload-section {
+      background: white;
+      padding: 1.5rem;
+      border-radius: 12px;
+      margin: 1.5rem 0;
+      box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    input[type="text"], input[type="file"] {
+      width: 100%;
+      padding: 0.5rem;
+      margin: 0.5rem 0;
+      border: 1px solid #ddd;
+      border-radius: 6px;
+    }
   </style>
+  <!-- Supabase SDK -->
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <!-- ffmpeg.wasm (v0.12.7) -->
+  <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.7/dist/ffmpeg.min.js"></script>
 </head>
 <body>
   <header>
@@ -33,23 +91,30 @@
 
   <script>
     // ========================
-    // Supabase 初始化（✅ 已修复命名冲突）
+    // ✅ 1. Supabase 初始化（无命名冲突）
     // ========================
     const supabaseUrl = 'https://ihnkersdbylugobbulmy.supabase.co';
     const supabaseAnonKey = 'sb_publishable_DuarQo-rGVGViEK7hZjfTg_9urgT5ws';
-    
-    // ✅ 正确：从全局 supabase 命名空间解构 createClient
     const { createClient } = supabase;
     const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
+
+    // ========================
+    // ✅ 2. FFmpeg 初始化（无 "FFmpeg is not defined"）
+    // ========================
+    if (typeof FFmpeg === 'undefined') {
+      document.getElementById('app').innerHTML = '<p class="error">音频处理库加载失败，请刷新页面或检查网络</p>';
+      throw new Error('FFmpeg not loaded');
+    }
+    const { createFFmpeg, fetchFile } = FFmpeg;
+    const ffmpeg = createFFmpeg({ log: false });
 
     // ========================
     // 全局状态
     // ========================
     let currentUser = null;
-    const ffmpeg = FFmpeg.createFFmpeg({ log: false });
 
     // ========================
-    // 路由系统
+    // 路由与页面渲染
     // ========================
     window.addEventListener('hashchange', renderPage);
     window.addEventListener('load', async () => {
@@ -67,23 +132,15 @@
       if (hash === 'home') {
         showHome();
       } else if (hash.startsWith('user/')) {
-        const parts = hash.split('/');
-        const userId = parts;
-        if (userId) {
-          showUserPage(userId);
-        } else {
-          navigateTo('home');
-        }
+        const userId = hash.split('/');
+        if (userId) showUserPage(userId);
+        else navigateTo('home');
       } else if (hash.startsWith('song/')) {
-        const parts = hash.split('/');
-        const songId = parts;
+        const songId = hash.split('/');
         const urlParams = new URLSearchParams(window.location.search);
         const distributorId = urlParams.get('distributor');
-        if (songId && distributorId) {
-          showSongPage(songId, distributorId);
-        } else {
-          navigateTo('home');
-        }
+        if (songId && distributorId) showSongPage(songId, distributorId);
+        else navigateTo('home');
       } else {
         showHome();
       }
@@ -94,7 +151,7 @@
     }
 
     // ========================
-    // 认证状态
+    // 认证相关
     // ========================
     async function updateAuthStatus() {
       const el = document.getElementById('auth-status');
@@ -105,7 +162,6 @@
             .select('balance, display_name')
             .eq('id', currentUser.id)
             .single();
-
           if (error) throw error;
           el.innerHTML = `
             <span>你好, ${escapeHtml(profile.display_name)} | 积分: ${profile.balance}</span>
@@ -132,7 +188,6 @@
       const email = prompt('请输入邮箱:');
       const password = prompt('请输入密码:');
       if (!email || !password) return;
-
       const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
       if (error) {
         alert('登录失败: ' + error.message);
@@ -145,22 +200,18 @@
     }
 
     // ========================
-    // 首页：歌曲库（瀑布流）
+    // 首页
     // ========================
     async function showHome() {
       try {
         const { data: songs, error } = await supabaseClient
           .from('songs')
-          .select(`
-            *,
-            creator:users(display_name)
-          `)
+          .select(`*, creator:users(display_name)`)
           .order('created_at', { ascending: false });
-
         if (error) throw error;
 
         let html = `
-          <div class="header-actions">
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem;">
             <h2>最新歌曲</h2>
             <div>
               <button onclick="sortSongs('created_at')">按时间</button>
@@ -177,15 +228,14 @@
             html += `
               <div class="card">
                 <h3>${escapeHtml(song.title)}</h3>
-                <p class="artist">by ${escapeHtml(song.creator.display_name)}</p>
-                <p class="stats">分发: ${song.distribution_count}</p>
-                <button class="btn-audio" onclick="playPreview('${song.id}')">▶ 试听 30s</button>
+                <p>by ${escapeHtml(song.creator.display_name)}</p>
+                <p>分发: ${song.distribution_count}</p>
+                <button onclick="playPreview('${song.id}')">▶ 试听 30s</button>
                 <a href="#song/${song.id}?distributor=${song.creator.id}" class="btn-link">详情</a>
               </div>
             `;
           });
         }
-
         html += '</div>';
         document.getElementById('app').innerHTML = html;
       } catch (err) {
@@ -200,57 +250,43 @@
           .from('songs')
           .select(`*, creator:users(display_name)`)
           .order(by, { ascending: false });
-
         if (error) throw error;
-
         const grid = document.querySelector('.masonry-grid');
-        grid.innerHTML = '';
-        if (songs.length === 0) {
-          grid.innerHTML = '<p class="empty">暂无歌曲</p>';
-          return;
-        }
+        grid.innerHTML = songs.length ? '' : '<p class="empty">暂无歌曲</p>';
         songs.forEach(song => {
           const card = document.createElement('div');
           card.className = 'card';
           card.innerHTML = `
             <h3>${escapeHtml(song.title)}</h3>
-            <p class="artist">by ${escapeHtml(song.creator.display_name)}</p>
-            <p class="stats">分发: ${song.distribution_count}</p>
-            <button class="btn-audio" onclick="playPreview('${song.id}')">▶ 试听 30s</button>
+            <p>by ${escapeHtml(song.creator.display_name)}</p>
+            <p>分发: ${song.distribution_count}</p>
+            <button onclick="playPreview('${song.id}')">▶ 试听 30s</button>
             <a href="#song/${song.id}?distributor=${song.creator.id}" class="btn-link">详情</a>
           `;
           grid.appendChild(card);
         });
       } catch (err) {
-        console.error('排序失败:', err);
         alert('排序失败: ' + err.message);
       }
     }
 
     // ========================
-    // 用户主页
+    // 用户页 & 上传
     // ========================
     async function showUserPage(userId) {
-      if (!currentUser) {
-        alert('请先登录');
-        navigateTo('home');
-        return;
-      }
-
+      if (!currentUser) { alert('请先登录'); navigateTo('home'); return; }
       const isSelf = currentUser.id === userId;
       try {
-        const { data: user, error: userErr } = await supabaseClient
+        const { data: user, error } = await supabaseClient
           .from('users')
           .select('*')
           .eq('id', userId)
           .single();
-
-        if (userErr) throw userErr;
+        if (error) throw error;
 
         let html = `
-          <div class="profile-header">
-            <h2>${escapeHtml(user.display_name)} 的主页</h2>
-            ${isSelf ? '<button class="btn-primary" id="uploadBtn">上传新歌</button>' : ''}
+          <div><h2>${escapeHtml(user.display_name)} 的主页</h2>
+          ${isSelf ? '<button class="btn-primary" id="uploadBtn">上传新歌</button>' : ''}
           </div>
         `;
 
@@ -264,15 +300,12 @@
           `;
         }
 
-        // 创作的歌曲
-        const { data: createdSongs, error: createdErr } = await supabaseClient
+        // 创作
+        const { data: createdSongs } = await supabaseClient
           .from('songs')
           .select('*')
           .eq('creator_id', userId)
           .order('created_at', { ascending: false });
-
-        if (createdErr) throw createdErr;
-
         html += `<h3>创作 (${createdSongs.length})</h3><div class="masonry-grid">`;
         if (createdSongs.length === 0) {
           html += '<p class="empty">暂无创作</p>';
@@ -281,61 +314,13 @@
             html += `
               <div class="card">
                 <h3>${escapeHtml(song.title)}</h3>
-                <p class="stats">分发: ${song.distribution_count}</p>
-                <button class="btn-audio" onclick="playPreview('${song.id}')">▶ 试听</button>
+                <p>分发: ${song.distribution_count}</p>
+                <button onclick="playPreview('${song.id}')">▶ 试听</button>
               </div>
             `;
           });
         }
         html += '</div>';
-
-        // 分发的歌曲（非自己创作）
-        const { data: distributed, error: distErr } = await supabaseClient
-          .from('user_songs')
-          .select('song: songs(title, creator_id)')
-          .eq('user_id', userId)
-          .eq('is_distributor', true);
-
-        if (distErr) throw distErr;
-
-        const others = distributed.filter(r => r.song.creator_id !== userId);
-        if (others.length > 0) {
-          html += `<h3>分发 (${others.length})</h3><div class="masonry-grid">`;
-          others.forEach(rel => {
-            html += `
-              <div class="card">
-                <h3>${escapeHtml(rel.song.title)}</h3>
-                <button class="btn-audio" onclick="playPreview('${rel.song.id}')">▶ 试听</button>
-              </div>
-            `;
-          });
-          html += '</div>';
-        }
-
-        // 收益
-        const { data: earnings, error: earnErr } = await supabaseClient
-          .from('distributor_earnings')
-          .select('*, song: songs(title)')
-          .or(`creator_id.eq.${userId},distributor_id.eq.${userId}`)
-          .order('created_at', { ascending: false });
-
-        if (earnErr) throw earnErr;
-
-        if (earnings.length > 0) {
-          html += `<h3>收益明细</h3><ul class="earnings-list">`;
-          earnings.forEach(e => {
-            const isCreator = e.creator_id === userId;
-            html += `
-              <li>
-                <strong>${escapeHtml(e.song.title)}</strong> 
-                ${isCreator ? '创作者' : '分发者'} 
-                +${isCreator ? e.creator_points : e.distributor_points} 积分
-              </li>
-            `;
-          });
-          html += '</ul>';
-        }
-
         document.getElementById('app').innerHTML = html;
 
         if (isSelf) {
@@ -350,40 +335,34 @@
       }
     }
 
-    // ========================
-    // 上传处理（含 ffmpeg 切割）
-    // ========================
     async function handleUpload() {
       const fileInput = document.getElementById('audioFile');
       const titleInput = document.getElementById('songTitle');
-      const file = fileInput.files;
+      const file = fileInput.files; // ✅ 取第一个文件
       const title = titleInput.value.trim();
-      if (!file || !title) {
-        alert('请选择文件并填写标题');
-        return;
-      }
+      if (!file || !title) { alert('请选择文件并填写标题'); return; }
 
       try {
         if (!ffmpeg.isLoaded()) {
           document.getElementById('app').innerHTML = '<div class="loading">正在加载音频处理引擎...</div>';
           await ffmpeg.load();
         }
-        const arrayBuffer = await file.arrayBuffer();
-        ffmpeg.FS('writeFile', 'input', new Uint8Array(arrayBuffer));
+        ffmpeg.FS('writeFile', 'input', await fetchFile(file));
         await ffmpeg.run('-i', 'input', '-t', '30', '-acodec', 'copy', 'preview.mp3');
 
         const songId = crypto.randomUUID();
         const previewData = ffmpeg.FS('readFile', 'preview.mp3');
         const fullData = ffmpeg.FS('readFile', 'input');
 
-        // 上传到 Storage
+        // 上传预览（公开）
         const { error: previewErr } = await supabaseClient.storage.from('previews').upload(`${songId}.mp3`, new Blob([previewData]));
         if (previewErr) throw previewErr;
 
+        // 上传完整版（私有）
         const { error: fullErr } = await supabaseClient.storage.from('full').upload(`${songId}.mp3`, new Blob([fullData]));
         if (fullErr) throw fullErr;
 
-        // 调用数据库函数
+        // 创建数据库记录
         const { error: rpcErr } = await supabaseClient.rpc('upload_song', {
           _user_id: currentUser.id,
           _title: title,
@@ -398,66 +377,60 @@
         navigateTo(`user/${currentUser.id}`);
       } catch (err) {
         console.error('上传失败:', err);
-        alert('上传失败: ' + (err.message || err.toString()));
+        alert('上传失败: ' + (err.message || '未知错误'));
         document.getElementById('app').innerHTML = '<div class="loading">操作中断</div>';
       }
     }
 
     // ========================
-    // 单曲页面
+    // 单曲页 & 购买
     // ========================
     async function showSongPage(songId, distributorId) {
       try {
-        const { data: song, error: songErr } = await supabaseClient
+        const { data: song, error } = await supabaseClient
           .from('songs')
           .select(`*, creator:users(display_name)`)
           .eq('id', songId)
           .single();
+        if (error) throw error;
 
-        if (songErr) throw songErr;
-
-        let ownership = null;
+        let hasAccess = false;
         if (currentUser) {
-          const { data: own, error: ownErr } = await supabaseClient
+          const { data: record } = await supabaseClient
             .from('user_songs')
             .select()
             .eq('user_id', currentUser.id)
             .eq('song_id', songId)
             .maybeSingle();
-          if (ownErr) console.warn('检查所有权失败:', ownErr);
-          ownership = own;
+          hasAccess = !!record;
         }
 
         let html = `
-          <div class="song-header">
+          <div class="card">
             <h2>${escapeHtml(song.title)}</h2>
             <p>创作者: ${escapeHtml(song.creator.display_name)}</p>
             <p>分发者: <a href="#user/${distributorId}">查看主页</a></p>
-          </div>
-          <div class="player">
         `;
 
-        if (ownership) {
-          // 已购买：获取完整版签名 URL
+        if (hasAccess) {
+          // 已购买：调用后端获取签名URL
           const session = (await supabaseClient.auth.getSession()).data.session;
-          const res = await fetch('/api/get-full-track?song_id=' + encodeURIComponent(songId), {
+          const res = await fetch(`/api/get-full-track?song_id=${encodeURIComponent(songId)}`, {
             headers: { Authorization: `Bearer ${session.access_token}` }
           });
           if (res.ok) {
-            const fullUrl = res.url;
-            html += `<audio controls src="${fullUrl}"></audio>`;
+            html += `<audio controls src="${res.url}"></audio>`;
           } else {
-            html += '<p class="error">无法加载完整版，请重试</p>';
+            html += '<p class="error">无法加载完整版</p>';
           }
         } else {
-          // 未购买：试听 + 购买
+          // 试听 + 购买
           const { data } = supabaseClient.storage.from('previews').getPublicUrl(`${songId}.mp3`);
           html += `
             <audio controls src="${data.publicUrl}"></audio>
             <button class="btn-primary" onclick="purchaseSong('${songId}', '${distributorId}')">支付 10 积分购买</button>
           `;
         }
-
         html += '</div>';
         document.getElementById('app').innerHTML = html;
       } catch (err) {
@@ -467,10 +440,7 @@
     }
 
     async function purchaseSong(songId, distributorId) {
-      if (!currentUser) {
-        alert('请先登录');
-        return;
-      }
+      if (!currentUser) { alert('请先登录'); return; }
       try {
         const { error } = await supabaseClient.rpc('purchase_song', {
           _buyer_id: currentUser.id,
@@ -478,24 +448,19 @@
           _distributor_id: distributorId
         });
         if (error) throw error;
-        alert('购买成功！刷新播放完整版');
+        alert('购买成功！刷新页面播放完整版');
         location.reload();
       } catch (err) {
-        console.error('购买失败:', err);
-        alert('购买失败: ' + (err.message || err.toString()));
+        alert('购买失败: ' + (err.message || '未知错误'));
       }
     }
 
-    // ========================
-    // 试听播放
-    // ========================
     async function playPreview(songId) {
       try {
         const { data } = supabaseClient.storage.from('previews').getPublicUrl(`${songId}.mp3`);
         const audio = new Audio(data.publicUrl);
         audio.play().catch(e => console.warn('自动播放被阻止:', e));
       } catch (err) {
-        console.error('试听失败:', err);
         alert('试听失败');
       }
     }
@@ -509,7 +474,7 @@
       return div.innerHTML;
     }
 
-    // 暴露全局函数供 HTML onclick 使用
+    // 暴露全局函数
     window.logout = logout;
     window.showLogin = showLogin;
     window.sortSongs = sortSongs;
