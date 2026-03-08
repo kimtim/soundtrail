@@ -11,9 +11,14 @@
   <script src="https://unpkg.com/@ffmpeg/ffmpeg@0.12.7/dist/ffmpeg.min.js"></script>
   <script src="https://unpkg.com/@ffmpeg/util@0.12.1/dist/ffmpeg-util.min.js"></script>
   <style>
-    /* 内联关键样式，避免 FOUC */
     .loading { text-align: center; padding: 2rem; color: #6b7280; }
     .hidden { display: none !important; }
+    .empty, .error {
+      text-align: center;
+      padding: 2rem;
+      color: #6b7280;
+    }
+    .error { color: #ef4444; }
   </style>
 </head>
 <body>
@@ -28,11 +33,14 @@
 
   <script>
     // ========================
-    // Supabase 初始化（已填入您的凭据）
+    // Supabase 初始化（✅ 已修复命名冲突）
     // ========================
     const supabaseUrl = 'https://ihnkersdbylugobbulmy.supabase.co';
     const supabaseAnonKey = 'sb_publishable_DuarQo-rGVGViEK7hZjfTg_9urgT5ws';
-    const supabase = supabase.createClient(supabaseUrl, supabaseAnonKey);
+    
+    // ✅ 正确：从全局 supabase 命名空间解构 createClient
+    const { createClient } = supabase;
+    const supabaseClient = createClient(supabaseUrl, supabaseAnonKey);
 
     // ========================
     // 全局状态
@@ -45,7 +53,7 @@
     // ========================
     window.addEventListener('hashchange', renderPage);
     window.addEventListener('load', async () => {
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await supabaseClient.auth.getSession();
       currentUser = session?.user || null;
       updateAuthStatus();
       renderPage();
@@ -59,15 +67,23 @@
       if (hash === 'home') {
         showHome();
       } else if (hash.startsWith('user/')) {
-        const userId = hash.split('/');
-        if (userId) showUserPage(userId);
-        else navigateTo('home');
+        const parts = hash.split('/');
+        const userId = parts;
+        if (userId) {
+          showUserPage(userId);
+        } else {
+          navigateTo('home');
+        }
       } else if (hash.startsWith('song/')) {
-        const songId = hash.split('/');
+        const parts = hash.split('/');
+        const songId = parts;
         const urlParams = new URLSearchParams(window.location.search);
         const distributorId = urlParams.get('distributor');
-        if (songId && distributorId) showSongPage(songId, distributorId);
-        else navigateTo('home');
+        if (songId && distributorId) {
+          showSongPage(songId, distributorId);
+        } else {
+          navigateTo('home');
+        }
       } else {
         showHome();
       }
@@ -84,7 +100,7 @@
       const el = document.getElementById('auth-status');
       if (currentUser) {
         try {
-          const { data: profile, error } = await supabase
+          const { data: profile, error } = await supabaseClient
             .from('users')
             .select('balance, display_name')
             .eq('id', currentUser.id)
@@ -92,7 +108,7 @@
 
           if (error) throw error;
           el.innerHTML = `
-            <span>你好, ${profile.display_name} | 积分: ${profile.balance}</span>
+            <span>你好, ${escapeHtml(profile.display_name)} | 积分: ${profile.balance}</span>
             <button onclick="logout()">退出</button>
             <button onclick="navigateTo('user/${currentUser.id}')">我的主页</button>
           `;
@@ -106,7 +122,7 @@
     }
 
     async function logout() {
-      await supabase.auth.signOut();
+      await supabaseClient.auth.signOut();
       currentUser = null;
       updateAuthStatus();
       navigateTo('home');
@@ -117,12 +133,12 @@
       const password = prompt('请输入密码:');
       if (!email || !password) return;
 
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
       if (error) {
         alert('登录失败: ' + error.message);
         return;
       }
-      const { data: { session } } = await supabase.auth.getSession();
+      const { data: { session } } = await supabaseClient.auth.getSession();
       currentUser = session.user;
       updateAuthStatus();
       navigateTo('home');
@@ -133,7 +149,7 @@
     // ========================
     async function showHome() {
       try {
-        const { data: songs, error } = await supabase
+        const { data: songs, error } = await supabaseClient
           .from('songs')
           .select(`
             *,
@@ -180,7 +196,7 @@
 
     async function sortSongs(by) {
       try {
-        const { data: songs, error } = await supabase
+        const { data: songs, error } = await supabaseClient
           .from('songs')
           .select(`*, creator:users(display_name)`)
           .order(by, { ascending: false });
@@ -223,7 +239,7 @@
 
       const isSelf = currentUser.id === userId;
       try {
-        const { data: user, error: userErr } = await supabase
+        const { data: user, error: userErr } = await supabaseClient
           .from('users')
           .select('*')
           .eq('id', userId)
@@ -243,13 +259,13 @@
             <div id="upload-section" class="hidden">
               <input type="file" accept="audio/*" id="audioFile" />
               <input type="text" placeholder="歌曲标题" id="songTitle" />
-              <button onclick="document.getElementById('uploadSection').classList.remove('hidden')">取消</button>
+              <button onclick="document.getElementById('upload-section').classList.add('hidden')">取消</button>
             </div>
           `;
         }
 
         // 创作的歌曲
-        const { data: createdSongs, error: createdErr } = await supabase
+        const { data: createdSongs, error: createdErr } = await supabaseClient
           .from('songs')
           .select('*')
           .eq('creator_id', userId)
@@ -274,7 +290,7 @@
         html += '</div>';
 
         // 分发的歌曲（非自己创作）
-        const { data: distributed, error: distErr } = await supabase
+        const { data: distributed, error: distErr } = await supabaseClient
           .from('user_songs')
           .select('song: songs(title, creator_id)')
           .eq('user_id', userId)
@@ -297,7 +313,7 @@
         }
 
         // 收益
-        const { data: earnings, error: earnErr } = await supabase
+        const { data: earnings, error: earnErr } = await supabaseClient
           .from('distributor_earnings')
           .select('*, song: songs(title)')
           .or(`creator_id.eq.${userId},distributor_id.eq.${userId}`)
@@ -361,14 +377,14 @@
         const fullData = ffmpeg.FS('readFile', 'input');
 
         // 上传到 Storage
-        const { error: previewErr } = await supabase.storage.from('previews').upload(`${songId}.mp3`, new Blob([previewData]));
+        const { error: previewErr } = await supabaseClient.storage.from('previews').upload(`${songId}.mp3`, new Blob([previewData]));
         if (previewErr) throw previewErr;
 
-        const { error: fullErr } = await supabase.storage.from('full').upload(`${songId}.mp3`, new Blob([fullData]));
+        const { error: fullErr } = await supabaseClient.storage.from('full').upload(`${songId}.mp3`, new Blob([fullData]));
         if (fullErr) throw fullErr;
 
         // 调用数据库函数
-        const { error: rpcErr } = await supabase.rpc('upload_song', {
+        const { error: rpcErr } = await supabaseClient.rpc('upload_song', {
           _user_id: currentUser.id,
           _title: title,
           _song_id: songId
@@ -392,7 +408,7 @@
     // ========================
     async function showSongPage(songId, distributorId) {
       try {
-        const { data: song, error: songErr } = await supabase
+        const { data: song, error: songErr } = await supabaseClient
           .from('songs')
           .select(`*, creator:users(display_name)`)
           .eq('id', songId)
@@ -402,7 +418,7 @@
 
         let ownership = null;
         if (currentUser) {
-          const { data: own, error: ownErr } = await supabase
+          const { data: own, error: ownErr } = await supabaseClient
             .from('user_songs')
             .select()
             .eq('user_id', currentUser.id)
@@ -423,8 +439,8 @@
 
         if (ownership) {
           // 已购买：获取完整版签名 URL
-          const session = (await supabase.auth.getSession()).data.session;
-          const res = await fetch('/api/get-full-track?song_id=' + songId, {
+          const session = (await supabaseClient.auth.getSession()).data.session;
+          const res = await fetch('/api/get-full-track?song_id=' + encodeURIComponent(songId), {
             headers: { Authorization: `Bearer ${session.access_token}` }
           });
           if (res.ok) {
@@ -435,7 +451,7 @@
           }
         } else {
           // 未购买：试听 + 购买
-          const { data } = supabase.storage.from('previews').getPublicUrl(`${songId}.mp3`);
+          const { data } = supabaseClient.storage.from('previews').getPublicUrl(`${songId}.mp3`);
           html += `
             <audio controls src="${data.publicUrl}"></audio>
             <button class="btn-primary" onclick="purchaseSong('${songId}', '${distributorId}')">支付 10 积分购买</button>
@@ -456,7 +472,7 @@
         return;
       }
       try {
-        const { error } = await supabase.rpc('purchase_song', {
+        const { error } = await supabaseClient.rpc('purchase_song', {
           _buyer_id: currentUser.id,
           _song_id: songId,
           _distributor_id: distributorId
@@ -475,7 +491,7 @@
     // ========================
     async function playPreview(songId) {
       try {
-        const { data } = supabase.storage.from('previews').getPublicUrl(`${songId}.mp3`);
+        const { data } = supabaseClient.storage.from('previews').getPublicUrl(`${songId}.mp3`);
         const audio = new Audio(data.publicUrl);
         audio.play().catch(e => console.warn('自动播放被阻止:', e));
       } catch (err) {
