@@ -1,1 +1,51 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>登录 - SoundTrail</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🎧 SoundTrail</h1>
+    </header>
+
+    <main class="card">
+      <h2>登录 / 注册</h2>
+      <form id="login-form" style="margin-top: 1.5rem;">
+        <div class="form-group">
+          <label for="email">邮箱</label>
+          <input type="email" id="email" required />
+        </div>
+        <div class="form-group">
+          <label for="password">密码</label>
+          <input type="password" id="password" required minlength="6" />
+        </div>
+        <button type="submit" class="btn btn-primary">登录</button>
+        <p style="margin-top: 1rem;">
+          <small>新用户？使用任意邮箱+密码即可注册</small>
+        </p >
+      </form>
+    </main>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script>
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value;
+      const password = document.getElementById('password').value;
+
+      const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+      if (error) {
+        alert('登录失败: ' + error.message);
+        return;
+      }
+      window.location.href = 'index.html';
+    });
+  </script>
+</body>
+</html>
 
