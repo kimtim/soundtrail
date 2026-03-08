@@ -106,7 +106,7 @@
       throw new Error('FFmpeg not loaded');
     }
     const { createFFmpeg, fetchFile } = FFmpeg;
-    const ffmpeg = createFFmpeg({ log: false });
+    const ff = createFFmpeg({ log: false });
 
     // ========================
     // 全局状态
@@ -343,16 +343,16 @@
       if (!file || !title) { alert('请选择文件并填写标题'); return; }
 
       try {
-        if (!ffmpeg.isLoaded()) {
+        if (!ff.isLoaded()) {
           document.getElementById('app').innerHTML = '<div class="loading">正在加载音频处理引擎...</div>';
-          await ffmpeg.load();
+          await ff.load();
         }
-        ffmpeg.FS('writeFile', 'input', await fetchFile(file));
-        await ffmpeg.run('-i', 'input', '-t', '30', '-acodec', 'copy', 'preview.mp3');
+        ff.FS('writeFile', 'input', await fetchFile(file));
+        await ff.run('-i', 'input', '-t', '30', '-acodec', 'copy', 'preview.mp3');
 
         const songId = crypto.randomUUID();
-        const previewData = ffmpeg.FS('readFile', 'preview.mp3');
-        const fullData = ffmpeg.FS('readFile', 'input');
+        const previewData = ff.FS('readFile', 'preview.mp3');
+        const fullData = ff.FS('readFile', 'input');
 
         // 上传预览（公开）
         const { error: previewErr } = await supabaseClient.storage.from('previews').upload(`${songId}.mp3`, new Blob([previewData]));
