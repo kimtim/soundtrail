@@ -1,1 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>单曲详情 - SoundTrail</title>
+  <link rel="stylesheet" href="css/style.css" />
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🎧 SoundTrail</h1>
+      <div id="auth-status"></div>
+    </header>
+
+    <main>
+      <div class="loading">加载中...</div>
+    </main>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/auth.js"></script>
+  <script src="js/song.js"></script>
+  <script>
+    initAuth();
+    const urlParams = new URLSearchParams(window.location.search);
+    const songId = urlParams.get('id');
+    const distributorId = urlParams.get('distributor');
+    if (songId && distributorId) {
+      loadSongPage(songId, distributorId);
+    } else {
+      window.location.href = 'index.html';
+    }
+  </script>
+</body>
+</html>
 
